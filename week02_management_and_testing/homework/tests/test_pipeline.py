@@ -1,11 +1,11 @@
 import pytest
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
 
 from modeling.diffusion import DiffusionModel
-from modeling.training import train_step
+from modeling.training import train_step, generate_samples, train_epoch
 from modeling.unet import UnetModel
 
 
@@ -41,6 +41,20 @@ def test_train_on_one_batch(device, train_dataset):
     assert loss < 0.5
 
 
-def test_training():
-    # note: implement and test a complete training procedure (including sampling)
-    pass
+@pytest.mark.parametrize(["device"], [["cpu"], ["cuda"]])
+def test_training(device, train_dataset):
+    test_set = Subset(train_dataset, [0, 1])
+
+    ddpm = DiffusionModel(
+        eps_model=UnetModel(3, 3, hidden_size=32),
+        betas=(1e-4, 0.02),
+        num_timesteps=1000,
+    )
+    ddpm.to(device)
+
+    optim = torch.optim.Adam(ddpm.parameters(), lr=5e-4)
+    dataloader = DataLoader(test_set, batch_size=4)
+
+    train_epoch(ddpm, dataloader, optim, device)
+
+    generate_samples(ddpm, device, 'test_out.png')
